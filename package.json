@@ -1,0 +1,19 @@
+{
+  "name": "clink",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "start": "node bot.mjs",
+    "send": "node -r dotenv/config bot.mjs send"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "dotenv": "^17.2.2",
+    "node-cron": "^4.2.1",
+    "telegraf": "^4.16.3"
+  }
+}
