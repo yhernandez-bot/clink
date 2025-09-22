@@ -1,2 +1,7 @@
 node_modules
 .env
+
+.env
+.env.bak
+token.txt
+node_modules
