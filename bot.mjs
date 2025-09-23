@@ -25,10 +25,12 @@ bot.start(async (ctx) => {
 
 // Contenido de ejemplo (luego lo conectamos a las APIs reales)
 async function buildDigest() {
-  const evento = await getTopCdmxEvent(); // intenta traer un evento real de CDMX
+  const evt = await getTopCdmxEvent(); // puede ser null o un objeto con { text }
+  const eventoStr = evt?.text || '🎶 Evento\n(Cargando eventos reales de tu organización…)\n🎟️ Pronto conectamos más fuentes 🔌';
+
   return [
     '🚨 Promo\nCafetera con 25% OFF (envío rápido a CDMX)\n👉 Ver oferta: https://ejemplo.com',
-    evento || '🎶 Evento\n(Cargando eventos reales de Eventbrite…)\n🎟️ Pronto conectamos más fuentes 🔌',
+    eventoStr,
     '🍔 Recomendación\nTaquería nueva en Roma con 3x2 en pastor (viernes)\n📍 Álvaro Obregón 200\n🗺️ Maps: https://ejemplo.com'
   ];
 }
