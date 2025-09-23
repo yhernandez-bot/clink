@@ -100,18 +100,16 @@ const start = new Date().toISOString().split('T')[0];
 const end   = new Date(Date.now() + 45*24*60*60*1000).toISOString().split('T')[0];
 
 // ...y en la query/params:
-"start_date.range_start": start,
-"start_date.range_end": end,
 
     // Trae eventos de la organización; expand=venue para poder filtrar por ciudad
-    const list = await api(`/organizations/${orgId}/events/`, {
-      order_by: "start_asc",
-      status: "live",
-      "start_date.range_start": range_start,
-      "start_date.range_end": range_end,
-      expand: "venue",
-      page_size: 50,
-    });
+const list = await api(`/organizations/${orgId}/events`, {
+  order_by: "start_asc",
+  status: "live",
+  "start_date.range_start": start,
+  "start_date.range_end": end,
+  expand: "venue",
+  page_size: 50,
+});
 
     const events = (list.events || [])
       // Solo futuros (por si acaso)
