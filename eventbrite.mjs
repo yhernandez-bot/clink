@@ -1,60 +1,158 @@
-// eventbrite.mjs — robusto con reintentos/timeout y fallback
-async function fetchWithRetry(url, options = {}, { attempts = 3, timeoutMs = 15000 } = {}) {
-  let lastErr;
-  for (let i = 1; i <= attempts; i++) {
-    try {
-      const ctrl = new AbortController();
-      const t = setTimeout(() => ctrl.abort(new Error('timeout')), timeoutMs);
-      const res = await fetch(url, { ...options, signal: ctrl.signal });
-      clearTimeout(t);
-      if (!res.ok) throw new Error(`HTTP ${res.status} ${await res.text()}`);
-      return await res.json();
-    } catch (e) {
-      lastErr = e;
-      if (i < attempts) await new Promise(r => setTimeout(r, i * 1000)); // backoff
-    }
-  }
-  throw lastErr;
+// eventbrite.mjs
+// Lee eventos desde Eventbrite usando la organización del usuario
+// y regresa el próximo evento en CDMX (o null si no hay).
+//
+// Requiere la variable de entorno EB_TOKEN (ya la tienes en Railway).
+// Funciona con Node 18+ (usa fetch nativo).
+
+const EB_TOKEN = process.env.EB_TOKEN;
+const API = "https://www.eventbriteapi.com/v3";
+
+if (!EB_TOKEN) {
+  console.warn("[Eventbrite] Falta EB_TOKEN");
 }
 
-export async function getTopCdmxEvent() {
-  const token = process.env.EB_TOKEN;
-  if (!token) {
-    console.warn('EB_TOKEN no configurado');
-    return null;
+// Helpers
+const api = async (path, params = {}) => {
+  const url = new URL(API + path);
+  for (const [k, v] of Object.entries(params)) {
+    if (v !== undefined && v !== null && v !== "") url.searchParams.set(k, v);
   }
-
-  const params = new URLSearchParams({
-    'location.address': 'Ciudad de México',
-    'location.within': '40km',
-    'start_date.range_start': new Date().toISOString(),
-    'sort_by': 'date',
-    'expand': 'venue',
-    'page_size': '25',
-    'include_unavailable_events': 'off'
+  const res = await fetch(url, {
+    headers: { Authorization: `Bearer ${EB_TOKEN}` },
   });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`[Eventbrite] ${res.status} ${text || res.statusText}`);
+  }
+  return res.json();
+};
 
-  const url = `https://www.eventbriteapi.com/v3/events/search/?${params.toString()}`;
+const toISO = (d) => new Date(d).toISOString().replace(/\.\d{3}Z$/, "Z");
+const addDays = (d, n) => {
+  const x = new Date(d);
+  x.setDate(x.getDate() + n);
+  return x;
+};
+
+// Obtiene el primer id de organización del usuario
+async function getOrgId() {
+  const meOrgs = await api("/users/me/organizations/");
+  const org = meOrgs.organizations?.[0];
+  if (!org) throw new Error("[Eventbrite] No hay organizaciones en la cuenta");
+  return org.id;
+}
+
+// Formatea fecha local breve
+function formatDateShort(iso, tz = "America/Mexico_City") {
+  try {
+    const dt = new Date(iso);
+    return new Intl.DateTimeFormat("es-MX", {
+      timeZone: tz,
+      weekday: "short",
+      day: "2-digit",
+      month: "short",
+      hour: "2-digit",
+      minute: "2-digit",
+    })
+      .format(dt)
+      .replace(/\./g, "");
+  } catch {
+    return iso;
+  }
+}
+
+// Determina si el venue está en CDMX (heurística)
+function isCdmxVenue(venue) {
+  const city =
+    venue?.address?.city ||
+    venue?.address?.region ||
+    venue?.address?.localized_address_display ||
+    "";
+  const txt = String(city).toLowerCase();
+  return (
+    txt.includes("cdmx") ||
+    txt.includes("ciudad de méxico") ||
+    txt.includes("mexico city") ||
+    txt.includes("miguel hidalgo") ||
+    txt.includes("cuauhtémoc") ||
+    txt.includes("coyoacán") ||
+    txt.includes("roma") ||
+    txt.includes("condesa") ||
+    txt.includes("polanco") ||
+    txt.includes("narvarte")
+  );
+}
+
+/**
+ * Obtiene el próximo evento de tu organización en CDMX dentro de los
+ * próximos 14 días. Devuelve un objeto con datos básicos y un campo `text`
+ * listo para Telegram. Si no hay eventos, devuelve null.
+ */
+export async function getTopCdmxEvent() {
+  if (!EB_TOKEN) return null;
 
   try {
-    const data = await fetchWithRetry(
-      url,
-      { headers: { Authorization: `Bearer ${token}` } },
-      { attempts: 3, timeoutMs: 20000 }
+    const orgId = await getOrgId();
+
+    // Rango de fechas
+    const now = new Date();
+    const end = addDays(now, 14);
+    const range_start = toISO(now);
+    const range_end = toISO(end);
+
+    // Trae eventos de la organización; expand=venue para poder filtrar por ciudad
+    const list = await api(`/organizations/${orgId}/events/`, {
+      order_by: "start_asc",
+      status: "live",
+      "start_date.range_start": range_start,
+      "start_date.range_end": range_end,
+      expand: "venue",
+      page_size: 50,
+    });
+
+    const events = (list.events || [])
+      // Solo futuros (por si acaso)
+      .filter((e) => new Date(e.start?.utc || e.start?.local || 0) > now)
+      // Con venue y en CDMX
+      .filter((e) => isCdmxVenue(e.venue || {}));
+
+    console.log(
+      `[Eventbrite] org=${orgId} eventos_en_rango=${(list.events || []).length} cdmx=${events.length}`
     );
 
-    const events = (data?.events || []).filter(e => e?.status === 'live');
-    const e = events[0];
-    if (!e) return null;
+    if (!events.length) return null;
 
-    const name = e.name?.text ?? 'Evento';
-    const when = e.start?.local ? e.start.local.replace('T', ' ').slice(0, 16) : '';
-    const venue = e.venue?.name ? `\n📍 ${e.venue.name}` : '';
-    const urlEvent = e.url;
+    const ev = events[0];
+    const title = ev.name?.text || "Evento";
+    const url = ev.url;
+    const startsIso = ev.start?.local || ev.start?.utc;
+    const when = formatDateShort(startsIso);
+    const venueName =
+      ev.venue?.name ||
+      ev.venue?.address?.localized_address_display ||
+      "Lugar por confirmar";
 
-    return `🎶 Evento\n${name}${when ? ` — ${when}` : ''}${venue}\n🎟️ Info: ${urlEvent}`;
+    const text =
+      `🎟️ *Evento*\n` +
+      `*${title}*\n` +
+      `🗓️ ${when}\n` +
+      `📍 ${venueName}\n` +
+      `➡️ ${url}`;
+
+    return {
+      title,
+      url,
+      when,
+      venue: venueName,
+      text,
+      raw: ev,
+    };
   } catch (err) {
-    console.error('Eventbrite timeout/err:', err?.message || err);
-    return null; // fallback: que el bot siga mandando las otras secciones
+    console.warn(String(err));
+    return null;
   }
 }
+
+// Export default por si el import lo espera así
+export default { getTopCdmxEvent };
