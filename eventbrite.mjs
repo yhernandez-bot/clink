@@ -111,6 +111,8 @@ const list = await api(`/organizations/${orgId}/events`, {
   page_size: 50,
 });
 
+    const now = new Date();
+
     const events = (list.events || [])
       // Solo futuros (por si acaso)
       .filter((e) => new Date(e.start?.utc || e.start?.local || 0) > now)
