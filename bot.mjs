@@ -42,7 +42,7 @@ bot.start(async (ctx) => {
 });
 
 async function buildDigest() {
-  const events = await getTopCdmxEvents();
+  const events = await getTopCdmxEvent();
   const eventosBlocks = events.length
     ? events.map(ev =>
         `🎟️ *${ev.name}*\n🗓️ ${ev.start}\n📍 ${ev.venue}\n➡️ ${ev.url}`
