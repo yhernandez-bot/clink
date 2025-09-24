@@ -86,7 +86,7 @@ async function sendDigestOnce() {
 
 // Programa envío diario 11:00 CDMX
 function scheduleDailyDigest() {
-  cron.schedule('*/2 * * * *', { timezone: 'America/Mexico_City' }, async () => {
+  cron.schedule('0 11 * * *', { timezone: 'America/Mexico_City' }, async () => {
   try {
     if (process.env.DIGEST_ENABLED === 'true') {
       await sendDigestOnce();
