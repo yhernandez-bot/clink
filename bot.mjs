@@ -13,8 +13,6 @@ console.log('DEBUG BOT_TOKEN?', !!process.env.BOT_TOKEN);
 
 const bot = new Telegraf(process.env.BOT_TOKEN);
 
-const bot = new Telegraf(process.env.BOT_TOKEN);
-
 /** Crea un inline keyboard a partir de los links que encuentre en el texto */
 function buildInlineKeyboard(text) {
   const urlRegex = /(https?:\/\/[^\s)]+)/g;
