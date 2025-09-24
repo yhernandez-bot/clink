@@ -3,7 +3,7 @@ import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
 import { Telegraf } from 'telegraf';
 import cron from 'node-cron';
-import { getTopCdmxEvent } from './eventbrite.mjs';
+import { getTopCdmxEvents } from './eventbrite.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -41,14 +41,17 @@ bot.start(async (ctx) => {
   console.log('Tu CHAT_ID es:', ctx.chat?.id, '→ Cópialo y pégalo en .env como CHAT_ID=');
 });
 
-// Contenido de ejemplo (luego lo conectamos a las APIs reales)
 async function buildDigest() {
-  const evt = await getTopCdmxEvent(); // puede ser null o un objeto con { text }
-  const eventoStr = evt?.text || '🎶 Evento\n(Cargando eventos reales de tu organización…)\n🎟️ Pronto conectamos más fuentes 🔌';
+  const events = await getTopCdmxEvents();
+  const eventosBlocks = events.length
+    ? events.map(ev =>
+        `🎟️ *${ev.name}*\n🗓️ ${ev.start}\n📍 ${ev.venue}\n➡️ ${ev.url}`
+      )
+    : ['🎶 (Por ahora no hay eventos nuevos en CDMX para mostrar)'];
 
   return [
     '🚨 Promo\nCafetera con 25% OFF (envío rápido a CDMX)\n👉 Ver oferta: https://ejemplo.com',
-    eventoStr,
+    ...eventosBlocks,
     '🍔 Recomendación\nTaquería nueva en Roma con 3x2 en pastor (viernes)\n📍 Álvaro Obregón 200\n🗺️ Maps: https://ejemplo.com'
   ];
 }
