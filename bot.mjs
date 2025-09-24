@@ -13,6 +13,26 @@ console.log('DEBUG BOT_TOKEN?', !!process.env.BOT_TOKEN);
 
 const bot = new Telegraf(process.env.BOT_TOKEN);
 
+const bot = new Telegraf(process.env.BOT_TOKEN);
+
+/** Crea un inline keyboard a partir de los links que encuentre en el texto */
+function buildInlineKeyboard(text) {
+  const urlRegex = /(https?:\/\/[^\s)]+)/g;
+  const links = [...text.matchAll(urlRegex)].map(m => m[1]);
+  if (!links.length) return undefined;
+
+  const rows = [];
+  for (const url of links) {
+    let label = '🔗 Abrir';
+    if (url.includes('eventbrite')) label = '🎫 Ver en Eventbrite';
+    else if (url.includes('maps.google')) label = '📍 Abrir mapa';
+    else if (/oferta|promo|ver oferta/i.test(text)) label = '🛒 Ver oferta';
+
+    rows.push([{ text: label, url }]); // un botón por fila
+  }
+  return { inline_keyboard: rows };
+}
+
 
 // Mensaje de bienvenida y ayuda para obtener tu CHAT_ID
 bot.start(async (ctx) => {
@@ -44,7 +64,12 @@ async function sendDigestOnce() {
   }
   const blocks = await buildDigest();
   for (const block of blocks) {
-    await bot.telegram.sendMessage(chatId, block, { disable_web_page_preview: false });
+    await bot.telegram.sendMessage(chatId, block, {
+  parse_mode: 'Markdown',
+  disable_web_page_preview: false,
+  reply_markup: buildInlineKeyboard(block),
+});
+
   }
   console.log('Digest enviado a', chatId);
 }
