@@ -86,7 +86,7 @@ async function sendDigestOnce() {
 
 // Programa envío diario 11:00 CDMX
 function scheduleDailyDigest() {
-  cron.schedule('0 11 * * *', async () => {
+  cron.schedule('*/2 * * * *', { timezone: 'America/Mexico_City' }, async () => {
   try {
     if (process.env.DIGEST_ENABLED === 'true') {
       await sendDigestOnce();
@@ -100,7 +100,7 @@ function scheduleDailyDigest() {
   timezone: 'America/Mexico_City',
 });
 
-  console.log('Programado: envío diario 11:00 America/Mexico_City');
+  console.log('⏱️ Programado: envío cada 2 minutos America/Mexico_City');
 }
 
 // Modo CLI vs servidor
