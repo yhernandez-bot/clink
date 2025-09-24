@@ -41,19 +41,28 @@ bot.start(async (ctx) => {
   console.log('Tu CHAT_ID es:', ctx.chat?.id, '→ Cópialo y pégalo en .env como CHAT_ID=');
 });
 
-async function buildDigest() {
-  const events = await getTopCdmxEvent();
-  const eventosBlocks = events.length
-    ? events.map(ev =>
-        `🎟️ *${ev.name}*\n🗓️ ${ev.start}\n📍 ${ev.venue}\n➡️ ${ev.url}`
-      )
-    : ['🎶 (Por ahora no hay eventos nuevos en CDMX para mostrar)'];
+import { format } from 'date-fns';
+import { es } from 'date-fns/locale';
 
-  return [
-    '🚨 Promo\nCafetera con 25% OFF (envío rápido a CDMX)\n👉 Ver oferta: https://ejemplo.com',
-    ...eventosBlocks,
-    '🍔 Recomendación\nTaquería nueva en Roma con 3x2 en pastor (viernes)\n📍 Álvaro Obregón 200\n🗺️ Maps: https://ejemplo.com'
+async function buildDigest() {
+  const events = (await getTopCdmxEvent()) || [];
+
+  const eventosBlocks = events.length
+    ? events.map(ev => {
+        const fecha = format(new Date(ev.start), "EEE d MMM – HH:mm", { locale: es });
+        return `🎟️ *${ev.name}*\n🗓️ ${fecha}\n📍 ${ev.venue}`;
+      })
+    : [];
+
+  const promos = [
+    '🚨 *Promo*\nCafetera con 25% OFF (envío rápido a CDMX)\n👉 [Ver oferta](https://ejemplo.com)',
   ];
+
+  const recomendaciones = [
+    '🍔 *Recomendación*\nTaquería nueva en Roma con 3x2 en pastor (viernes)\n📍 Álvaro Obregón 200\n[🗺️ Ver en Maps](https://ejemplo.com)',
+  ];
+
+  return [...promos, ...eventosBlocks, ...recomendaciones];
 }
 
 // Envía el digest al chat configurado en .env
@@ -78,12 +87,18 @@ async function sendDigestOnce() {
 // Programa envío diario 11:00 CDMX
 function scheduleDailyDigest() {
   cron.schedule('0 11 * * *', async () => {
-    try {
+  try {
+    if (process.env.DIGEST_ENABLED === 'true') {
       await sendDigestOnce();
-    } catch (e) {
-      console.error('Error enviando digest programado:', e);
+    } else {
+      console.log('⏸️ Digest automático desactivado por DIGEST_ENABLED');
     }
-  }, { timezone: 'America/Mexico_City' });
+  } catch (e) {
+    console.error('⚠️ Error en digest programado:', e);
+  }
+}, {
+  timezone: 'America/Mexico_City',
+});
 
   console.log('Programado: envío diario 11:00 America/Mexico_City');
 }
