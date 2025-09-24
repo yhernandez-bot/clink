@@ -3,7 +3,7 @@ import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
 import { Telegraf } from 'telegraf';
 import cron from 'node-cron';
-import { getTopCdmxEvents } from './eventbrite.mjs';
+import { getTopCdmxEvent } from './eventbrite.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
