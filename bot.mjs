@@ -265,14 +265,14 @@ function scheduleDailyDigest() {
 }
 
 // Enviar promos de Cuponatic una vez al día (ejemplo: 9:00 am)
-cron.schedule('0 9 * * *', { timezone: 'America/Mexico_City' }, async () => {
+cron.schedule('0 9 * * *', async () => {
   try {
     const promos = await getCuponaticPromos();
-    console.log('⏰ Enviando Cuponatic diario…', promos);
+    console.log('🧨 Enviando Cuponatic diario…', promos);
 
     if (promos.length > 0) {
       const text = promos
-        .map(p => `🛍️ *${p.title}*\n💲${p.price}\n🔗 ${p.url}`)
+        .map(p => `🎁 *${p.title}*\n💲${p.price}\n🔗 ${p.url}`)
         .join('\n\n');
 
       await bot.telegram.sendMessage(process.env.CHAT_ID, text, {
@@ -284,6 +284,8 @@ cron.schedule('0 9 * * *', { timezone: 'America/Mexico_City' }, async () => {
   } catch (err) {
     console.error('❌ Error en cron Cuponatic:', err);
   }
+}, {
+  timezone: 'America/Mexico_City'
 });
 
 
