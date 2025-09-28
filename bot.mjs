@@ -6,7 +6,7 @@ const __dirname = path.dirname(__filename);
 
 
 import dotenv from 'dotenv';
-dotenv.config({ path: `${__dirname}/.env`, override: true });
+dotenv.config(); // sin override
 import { Telegraf } from 'telegraf';
 import cron from 'node-cron';
 import { getTopCdmxEvent } from './sources/eventbrite.mjs';
