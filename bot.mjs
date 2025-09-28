@@ -337,6 +337,24 @@ if (mode === 'send') {
   }
   process.exit(0);
 
+} else if (mode === 'eventbrite:send') {
+  console.log('Enviando Eventbrite sin launch()…');
+  try {
+    const ev = await getTopCdmxEvent();
+    if (!ev) {
+      console.log('ℹ️ Eventbrite: no hay eventos próximos en CDMX.');
+    } else {
+      await bot.telegram.sendMessage(process.env.CHAT_ID, ev.text, {
+        parse_mode: 'Markdown',
+        disable_web_page_preview: false,
+      });
+      console.log('✅ Eventbrite enviado:', ev.title);
+    }
+  } catch (err) {
+    console.error('❌ Error eventbrite:send', err);
+  }
+  process.exit(0);
+
 } else {
   // Modo servidor: lanza el bot y programa los cron jobs
   console.log('🟢 Iniciando bot en modo servidor…');
