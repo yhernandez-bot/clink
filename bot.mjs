@@ -10,10 +10,10 @@ dotenv.config({ path: `${__dirname}/.env`, override: true });
 import { Telegraf } from 'telegraf';
 import cron from 'node-cron';
 import { getTopCdmxEvent } from './eventbrite.mjs';
-import { getTopTicketmasterEvents } from './ticketmaster.mjs';
+import { getTopTicketmasterEvents } from './sources/ticketmaster.mjs';
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { getCuponaticPromos } from './cuponatic.mjs';
+import { getCuponaticPromos } from './sources/cuponatic.mjs';
 
 
 // Formatea "YYYY-MM-DD" o "YYYY-MM-DDTHH:mm" de forma segura
