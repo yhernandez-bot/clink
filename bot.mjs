@@ -14,6 +14,7 @@ import { getTopTicketmasterEvents } from './sources/ticketmaster.mjs';
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { getCuponaticPromos } from './sources/cuponatic.mjs';
+import { getPromodescuentosDeals } from './sources/promodescuento.mjs';
 
 
 // Formatea "YYYY-MM-DD" o "YYYY-MM-DDTHH:mm" de forma segura
@@ -104,11 +105,12 @@ bot.start(async (ctx) => {
 
 async function buildDigest() {
   // 1) Trae todo en paralelo y cae en arrays vacíos si algo falla
-  const [ebEvents, tmEvents, cuponaticPromos] = await Promise.all([
-    getTopCdmxEvent().catch(() => []) || [],
-    getTopTicketmasterEvents().catch(() => []) || [],
-    getCuponaticPromos().catch(() => []) || [],
-  ]);
+  const [ebEvents, tmEvents, cuponaticPromos, pdDeals] = await Promise.all([
+  getTopCdmxEvent().catch(() => []),
+  getTopTicketmasterEvents().catch(() => []),
+  getCuponaticPromos().catch(() => []),
+  getPromodescuentosDeals().catch(() => []),
+]);
 
   // 2) Promos Cuponatic (máx 2 – silencioso si no hay)
 const promoBlocks = (cuponaticPromos || [])
@@ -176,19 +178,37 @@ const tmBlocks = unicos
   })
   .filter(Boolean);
 
+// 2bis) Promodescuentos (silencioso si no hay)
+const pdBlocks = (pdDeals || [])
+  .map(d => {
+    const title = d.title?.trim() || 'Oferta sin título';
+    const priceLine = d.price ? `💲 ${d.price}\n` : '';
+    const url = d.url?.trim();
+    if (!url) return null;
+
+    return (
+      `💥 *Oferta en Promodescuentos*\n` +
+      `*${title}*\n` +
+      `${priceLine}` +
+      `🔗 [Ver oferta](${url})`
+    );
+  })
+  .filter(Boolean);
+
 // ---- DEBUG: contadores por bloque (solo consola) ----
 console.log('DEBUG Counters:', {
   promos: promoBlocks?.length ?? 0,
+  promodescuentos: pdBlocks?.length ?? 0,
   eventbrite: ebBlocks?.length ?? 0,
   ticketmaster: tmBlocks?.length ?? 0,
 });
-
   // 5) Devuelve sólo lo que haya; si no hay nada, el caller no enviará mensajes
   return [
-    ...promoBlocks,
-    ...ebBlocks,
-    ...tmBlocks,
-  ];
+  ...promoBlocks,        // Cuponatic
+  ...pdBlocks,           // Promodescuentos  ← NUEVO
+  ...ebBlocks,
+  ...tmBlocks,
+];
 }
 
 // Enviar a Telegram con manejo de errores y logs útiles
@@ -221,10 +241,11 @@ async function sendDigestOnce() {
 
   // Conteo final por tipo (depende de cómo armaste buildDigest)
   const totals = {
-    promos: (blocks || []).filter(b => b.includes('🛍')).length,
-    eventbrite: (blocks || []).filter(b => b.includes('🎟') || b.includes('🎤') || b.includes('Evento')).length,
-    ticketmaster: (blocks || []).filter(b => b.includes('Ver en Ticketmaster')).length,
-  };
+  promos: (blocks || []).filter(b => b.includes('🎁')).length,
+  promodescuentos: (blocks || []).filter(b => b.includes('💸')).length,
+  eventbrite: (blocks || []).filter(b => b.includes('🎟') || b.includes('🎤') || b.includes('Evento')).length,
+  ticketmaster: (blocks || []).filter(b => b.includes('🎫') || b.includes('Ticketmaster')).length,
+};
   console.log('📊 Totales a enviar:', totals, 'Total=', blocks.length);
 
   if (!blocks || blocks.length === 0) {
