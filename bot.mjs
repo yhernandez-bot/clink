@@ -9,7 +9,7 @@ import dotenv from 'dotenv';
 dotenv.config({ path: `${__dirname}/.env`, override: true });
 import { Telegraf } from 'telegraf';
 import cron from 'node-cron';
-import { getTopCdmxEvent } from './eventbrite.mjs';
+import { getTopCdmxEvent } from './sources/eventbrite.mjs';
 import { getTopTicketmasterEvents } from './sources/ticketmaster.mjs';
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
