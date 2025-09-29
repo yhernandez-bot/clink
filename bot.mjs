@@ -211,15 +211,19 @@ console.log('DEBUG Counters:', {
   eventbrite: ebBlocks?.length ?? 0,
   ticketmaster: tmBlocks?.length ?? 0,
 });
-  // 6) Devuelve sólo lo que haya; si no hay nada, el caller no enviará mensajes
-  return [
-  ...promoBlocks,        // Cuponatic
-  ...pdBlocks,           // Promodescuentos
-  ...ebBlocks,           // Eventbrite
-  ...tmBlocks,           // Ticketmaster
-  ...legoBlocks,         // LEGO – NUEVO
-];
 
+  // 6) Devuelve sólo lo que haya; si no hay nada, el caller no enviará mensajes
+      return [
+      ...promoBlocks,
+      ...pdBlocks,
+      ...ebBlocks,
+      ...tmBlocks,
+      ...legoBlocks,
+    ];
+} 
+
+// ==== DEBUG: contadores por bloque (solo consola) ====
+console.log('DEBUG Counters:', {
 
 // Enviar a Telegram con manejo de errores y logs útiles
 async function safeSend(bot, chatId, text, extra) {
