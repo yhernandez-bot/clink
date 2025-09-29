@@ -8,13 +8,18 @@ export async function getLegoPromos(limit = 5) {
     const res = await fetch(URL);
     const html = await res.text();
 
-    const items = [...html.matchAll(/<a .*?href="(https:\/\/articulo\.mercadolibre\.com\.mx\/.*?)".*?<h2 class="ui-search-item__title">(.*?)<\/h2>.*?price-tag-fraction.*?>([\d,]+)/gs)];
+    const items = [...html.matchAll(
+      /<a .*?href="(https:\/\/articulo\.mercadolibre\.com\.mx\/[^"]+)".*?<h2 class="ui-search-item__title">(.*?)<\/h2>.*?price-tag-fraction.*?>([\d,]+)/gs
+    )];
 
-    const promos = items.slice(0, limit).map(([, url, title, price]) => ({
-      title: title.trim(),
-      url,
-      price: `$${price} MXN`
-    }));
+    const promos = items.slice(0, limit).map(match => {
+      const [, url, title, price] = match;
+      return {
+        title: title.trim(),
+        url: url.trim(),
+        price: `$${price} MXN`,
+      };
+    });
 
     return promos;
   } catch (err) {
