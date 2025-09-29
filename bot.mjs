@@ -220,7 +220,7 @@ console.log('DEBUG Counters:', {
       ...tmBlocks,
       ...legoBlocks,
     ];
-} 
+    }; 
 
 // ==== DEBUG: contadores por bloque (solo consola) ====
 console.log('DEBUG Counters:', {
