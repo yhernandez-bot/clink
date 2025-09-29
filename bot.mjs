@@ -15,6 +15,7 @@ import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { getCuponaticPromos } from './sources/cuponatic.mjs';
 import { getPromodescuentosDeals } from './sources/promodescuento.mjs';
+import { getLegoPromos } from './sources/mercadolibre.mjs';
 
 
 // Formatea "YYYY-MM-DD" o "YYYY-MM-DDTHH:mm" de forma segura
@@ -105,11 +106,12 @@ bot.start(async (ctx) => {
 
 async function buildDigest() {
   // 1) Trae todo en paralelo y cae en arrays vacíos si algo falla
-  const [ebEvents, tmEvents, cuponaticPromos, pdDeals] = await Promise.all([
+  const [ebEvents, tmEvents, cuponaticPromos, pdDeals, legoPromos] = await Promise.all([
   getTopCdmxEvent().catch(() => []),
   getTopTicketmasterEvents().catch(() => []),
   getCuponaticPromos().catch(() => []),
   getPromodescuentosDeals().catch(() => []),
+  getLegoPromos().catch(() => []),
 ]);
 
   // 2) Promos Cuponatic (máx 2 – silencioso si no hay)
@@ -178,6 +180,12 @@ const tmBlocks = unicos
   })
   .filter(Boolean);
 
+// 5) LEGO (MercadoLibre) – máximo 5
+const legoBlocks = (legoPromos || [])
+  .slice(0, 5)
+  .map(p => `🧱 *${p.title}*\n💸 ${p.price}\n➡️ ${p.url}`)
+  .filter(Boolean);
+
 // 2bis) Promodescuentos (silencioso si no hay)
 const pdBlocks = (pdDeals || [])
   .map(d => {
@@ -195,6 +203,7 @@ const pdBlocks = (pdDeals || [])
   })
   .filter(Boolean);
 
+
 // ---- DEBUG: contadores por bloque (solo consola) ----
 console.log('DEBUG Counters:', {
   promos: promoBlocks?.length ?? 0,
@@ -202,14 +211,15 @@ console.log('DEBUG Counters:', {
   eventbrite: ebBlocks?.length ?? 0,
   ticketmaster: tmBlocks?.length ?? 0,
 });
-  // 5) Devuelve sólo lo que haya; si no hay nada, el caller no enviará mensajes
+  // 6) Devuelve sólo lo que haya; si no hay nada, el caller no enviará mensajes
   return [
   ...promoBlocks,        // Cuponatic
-  ...pdBlocks,           // Promodescuentos  ← NUEVO
-  ...ebBlocks,
-  ...tmBlocks,
+  ...pdBlocks,           // Promodescuentos
+  ...ebBlocks,           // Eventbrite
+  ...tmBlocks,           // Ticketmaster
+  ...legoBlocks,         // LEGO – NUEVO
 ];
-}
+
 
 // Enviar a Telegram con manejo de errores y logs útiles
 async function safeSend(bot, chatId, text, extra) {
