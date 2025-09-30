@@ -212,34 +212,6 @@ console.log('DEBUG Counters:', {
   ticketmaster: tmBlocks?.length ?? 0,
 });
 
-  // 6) Devuelve sólo lo que haya; si no hay nada, el caller no enviará mensajes
-      return [
-      ...promoBlocks,
-      ...pdBlocks,
-      ...ebBlocks,
-      ...tmBlocks,
-      ...legoBlocks,
-    ];
-    }; 
-
-// ==== DEBUG: contadores por bloque (solo consola) ====
-console.log('DEBUG Counters:', {
-
-// Enviar a Telegram con manejo de errores y logs útiles
-async function safeSend(bot, chatId, text, extra) {
-  try {
-    await bot.telegram.sendMessage(chatId, text, extra);
-  } catch (e) {
-    const desc = e?.response?.description || e?.message || String(e);
-    console.error('❌ Error enviando mensaje a Telegram:', desc);
-    try {
-      // En muchos 400 el problema es la URL del botón
-      console.error('Payload (primeras 200 chars):', (text || '').slice(0, 200));
-      if (extra?.reply_markup) {
-        console.error('Inline keyboard:', JSON.stringify(extra.reply_markup));
-      }
-    } catch {}
-  }
 }
 
 // Envía el digest al chat configurado en .env (con logs y guardas)
@@ -282,7 +254,7 @@ async function sendDigestOnce() {
 
 // Programa el envío diario 11:00 CDMX con logs y manejo de errores
 function scheduleDailyDigest() {
-  cron.schedule('0 11 * * *', async () => {
+  cron.schedule('* * * * *', async () => {
     console.log('⏰ Cron 11:00 disparado (America/Mexico_City). DIGEST_ENABLED=', process.env.DIGEST_ENABLED);
     try {
       if (process.env.DIGEST_ENABLED === 'true') {
@@ -369,13 +341,43 @@ if (mode === 'send') {
   }
   process.exit(0);
 
+} else if (mode === 'digest') { 
+  await sendDigestOnce();
+  process.exit(0);
 } else {
-  // Modo servidor: lanza el bot y programa los cron jobs
   console.log('🟢 Iniciando bot en modo servidor…');
-  await bot.launch();
-  scheduleDailyDigest();
-  console.log('✅ Bot iniciado y cron programado.');
+  try {
+    await bot.launch();
+    console.log('✅ Bot lanzado');
+    scheduleDailyDigest();
+    console.log('✅ Bot iniciado y cron programado.');
+  } catch (err) {
+    console.error('❌ Error iniciando bot o cron:', err);
+  }
 }
+
+// Enviar a Telegram con manejo de errores y logs útiles
+async function safeSend(bot, chatId, text, extra) {
+  try {
+    await bot.telegram.sendMessage(chatId, text, extra);
+  } catch (e) {
+    const desc = e?.response?.description || e?.message || String(e);
+    console.error('❌ Error enviando mensaje a Telegram:', desc);
+    try {
+      // En muchos 400 el problema es la URL del botón
+      console.error('Payload (primeras 200 chars):', (text || '').slice(0, 200));
+      if (extra?.reply_markup) {
+        console.error('Inline keyboard:', JSON.stringify(extra.reply_markup));
+      }
+    } catch {}
+  }
+}
+
+// Evita que Railway apague el contenedor por inactividad
+setInterval(() => {
+  console.log('⏳ Manteniendo contenedor vivo (ping)…');
+}, 1000 * 60 * 5); // cada 5 minutos
+
 
 // ==== Apagado limpio ====
 process.once('SIGINT',  () => bot.stop('SIGINT'));
