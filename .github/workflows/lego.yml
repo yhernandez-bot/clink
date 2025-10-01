@@ -40,4 +40,5 @@ jobs:
           CHAT_ID: ${{ secrets.CHAT_ID }}
           AFF_PREFIX: ${{ secrets.AFF_PREFIX }}   # opcional
           LEGO_MAX_ITEMS: "12"
+          LEGO_MIN_DISCOUNT: "5"
         run: node bot_lego.mjs send
