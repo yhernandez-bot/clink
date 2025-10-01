@@ -3,6 +3,7 @@ import { Telegraf } from 'telegraf';
 import 'dotenv/config';
 import { getLegoDeals } from './sources/lego_meli.mjs';
 
+const MIN_DISCOUNT = Number(process.env.LEGO_MIN_DISCOUNT ?? 25);
 const BOT_TOKEN = process.env.BOT_TOKEN;
 const CHAT_ID   = process.env.CHAT_ID;
 
@@ -150,26 +151,26 @@ function discountBadge(pct) {
 
 async function sendLegoNow() {
   try {
-    // Trae ofertas (tu scraper ya filtra >=25% OFF)
-    const allDeals = await getLegoDeals();
-    const total = allDeals.length;
+    // Trae ofertas (todas) y filtra por el mínimo desde env
+const allDeals = await getLegoDeals();
+const filtradas = allDeals.filter(x => (x.pct ?? x.discount ?? 0) >= MIN_DISCOUNT);
 
-    // Ordena por mayor % y limita para no saturar
-    const MAX_ITEMS = 12;
-    const deals = allDeals
-      .sort((a, b) => (b.pct || 0) - (a.pct || 0))
-      .slice(0, MAX_ITEMS);
+// Ordena y limita
+const MAX_ITEMS = Number(process.env.LEGO_MAX_ITEMS ?? 12);
+const deals = filtradas
+  .sort((a, b) => (b.pct ?? b.discount ?? 0) - (a.pct ?? a.discount ?? 0))
+  .slice(0, MAX_ITEMS);
 
-    if (!deals.length) {
-      console.log('ℹ️ No hay promos LEGO con ≥25% OFF');
-      return;
-    }
+if (!deals.length) {
+  console.log(`ℹ️ No hay promos LEGO con ≥${MIN_DISCOUNT}% OFF`);
+  return;
+}
 
-    // Cabecera
-    await bot.telegram.sendMessage(
-      CHAT_ID,
-      `🧱 LEGO con ≥25% OFF — Top ${deals.length} de ${total}`
-    );
+// Cabecera
+await bot.telegram.sendMessage(
+  CHAT_ID,
+  `🧱 LEGO con ≥${MIN_DISCOUNT}% OFF — Top ${deals.length} de ${filtradas.length}`
+);
 
     const sleep = ms => new Promise(r => setTimeout(r, ms));
 
