@@ -3,11 +3,23 @@ name: LEGO diario
 on:
   schedule:
     - cron: "0 17 * * *"   # 11:00 AM CDMX (GitHub Actions usa UTC)
-  workflow_dispatch: {}     # permite correrlo manualmente
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: lego-daily
+  cancel-in-progress: true
 
 jobs:
-  run:
+  send-lego:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      TZ: America/Mexico_City
+      NODE_ENV: production
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -15,10 +27,12 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: "22"
+          node-version: 22
+          cache: npm
+          cache-dependency-path: package-lock.json
 
       - name: Instalar dependencias
-        run: npm ci
+        run: npm ci --no-audit --fund=false
 
       - name: Enviar LEGO
         env:
