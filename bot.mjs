@@ -18,6 +18,7 @@ import { getPromodescuentosDeals } from './sources/promodescuento.mjs';
 import { getLegoPromos } from './sources/mercadolibre.mjs';
 
 
+
 // Formatea "YYYY-MM-DD" o "YYYY-MM-DDTHH:mm" de forma segura
 function prettyDate(start) {
   if (!start) return '';
@@ -61,27 +62,30 @@ async function sendCuponaticOnce(limit = 3) {
     const promos = await getCuponaticPromos(limit);
 
     if (!promos || promos.length === 0) {
+      // Mensaje simple sin MarkdownV2
       await bot.telegram.sendMessage(
         process.env.CHAT_ID,
-        "Hoy no encontré promos de Cuponatic 😕"
+        "Hoy no encontré promos de Cuponatic 🙂"
       );
       return;
     }
 
-    // arma el mensaje (Markdown)
+    // Arma el mensaje en MarkdownV2 (con escape)
+    const header = '🎁 *Promos de Cuponatic hoy:*\n\n';
     const text =
-      "🛍️ *Promos de Cuponatic hoy:*\n\n" +
+      header +
       promos
-        .map(
-          (p) =>
-            `🎯 *${p.title}*\n` +
-            `💵 ${p.price || "$"}\n` +
-            `🔗 [Ver oferta](${p.url})`
-        )
-        .join("\n\n");
+        .map(p => {
+          const title = escMdV2(p?.title || 'Promo sin título');
+          const price = escMdV2(p?.price || '');
+          // URL en <> para evitar escapes
+          const url = p?.url ? `<${p.url}>` : '';
+          return `🎁 *${title}*\n💲${price}\n🔗 ${url}`;
+        })
+        .join('\n\n');
 
     await bot.telegram.sendMessage(process.env.CHAT_ID, text, {
-      parse_mode: "Markdown",
+      parse_mode: 'MarkdownV2',
       disable_web_page_preview: false,
     });
   } catch (err) {
@@ -104,6 +108,11 @@ bot.start(async (ctx) => {
   console.log('Tu CHAT_ID es:', ctx.chat?.id, '→ Cópialo y pégalo en .env como CHAT_ID=');
 });
 
+// Función helper para escapar caracteres de MarkdownV2
+function escMdV2(s = '') {
+  return String(s).replace(/[_*[\]()~`>#+\-=|{}.!\\]/g, '\\$&');
+}
+
 async function buildDigest() {
   // 1) Trae todo en paralelo y cae en arrays vacíos si algo falla
   const [ebEvents, tmEvents, cuponaticPromos, pdDeals, legoPromos] = await Promise.all([
@@ -114,17 +123,15 @@ async function buildDigest() {
   getLegoPromos().catch(() => []),
 ]);
 
-  // 2) Promos Cuponatic (máx 2 – silencioso si no hay)
+// 2) Promos Cuponatic (máx 2 – silencioso si no hay)
 const promoBlocks = (cuponaticPromos || [])
   .slice(0, 2)
   .map(p => {
-    const title = p?.title?.trim() || 'Promo sin título';
-    const price = p?.price ? `💸 ${p.price}` : '';
+    const title = escMdV2(p?.title?.trim() || 'Promo sin título');
+    const price = p?.price ? `💸 ${escMdV2(p.price)}` : '';
     let url = (p?.url || '').trim();
 
-    // Normalizar URL:
-    // - si viene como //algo -> anteponer https:
-    // - si viene relativa (/ruta o ruta) -> anteponer dominio
+    // Normaliza URL (agrega protocolo/dominio si falta)
     if (url && !/^https?:\/\//i.test(url)) {
       if (url.startsWith('//')) {
         url = `https:${url}`;
@@ -133,13 +140,11 @@ const promoBlocks = (cuponaticPromos || [])
       }
     }
 
-    // Validar URL final (solo dominios de cuponatic México)
+    // Acepta solo dominios válidos de Cuponatic MX
     if (!/^https?:\/\/(www|ayuda)\.cuponatic\.com\.mx(\/|$)/i.test(url)) return null;
 
-    // (Opcional) Debug para ver qué quedó
-    // console.log('Cuponatic URL normalizada ->', url);
-
-    return `🛍 *${title}*\n${price}\n🔗 [Ver oferta](${url})`;
+    // IMPORTANT: no usar sintaxis [texto](url) ni escapar la URL en MarkdownV2
+    return `🎁 *${title}*\n${price}\n🔗 ${url}`;
   })
   .filter(Boolean);
 
@@ -282,9 +287,10 @@ cron.schedule('0 9 * * *', async () => {
         .map(p => `🎁 *${p.title}*\n💲${p.price}\n🔗 ${p.url}`)
         .join('\n\n');
 
-      await bot.telegram.sendMessage(process.env.CHAT_ID, text, {
-        parse_mode: 'Markdown'
-      });
+      await bot.telegram.sendMessage(process.env.CHAT_ID, promoBlocks.join("\n\n"), {
+  parse_mode: 'MarkdownV2',
+  disable_web_page_preview: false,
+});
     } else {
       console.log('ℹ️ Cuponatic: no hay promos hoy, no se envía mensaje.');
     }
@@ -304,17 +310,32 @@ if (mode === 'send') {
   await sendDigestOnce(); // usa bot.telegram directamente
   process.exit(0);
 
+// Función helper para escapar caracteres de MarkdownV2 (déjala solo una vez en el archivo)
+function escMdV2(s = '') {
+  return String(s).replace(/[_*[\]()~`>#+\-=|{}.!\\]/g, '\\$&');
+}
+
 } else if (mode === 'cuponatic:send') {
   console.log('Enviando Cuponatic sin launch()…');
   try {
     const promos = await getCuponaticPromos();
     if (promos.length > 0) {
-      const text = promos
-        .map(p => `🛍️ *${p.title}*\n💲${p.price}\n🔗 ${p.url}`)
-        .join('\n\n');
-      await bot.telegram.sendMessage(process.env.CHAT_ID, text, {
-        parse_mode: 'Markdown',
+      // Construimos bloques seguros para MarkdownV2
+      const promoBlocks = promos.map(p => {
+        const title = escMdV2(p?.title || 'Promo sin título');
+        const price = p?.price ? `💸 ${escMdV2(p.price)}` : '';
+        const url = (p?.url || '').trim(); // 🔑 sin escaparlo, URL directa
+
+        return `🎁 *${title}*\n${price}\n🔗 ${url}`;
       });
+
+      // Enviamos todas las promos en un solo mensaje
+      await bot.telegram.sendMessage(process.env.CHAT_ID, promoBlocks.join('\n\n'), {
+        parse_mode: 'MarkdownV2',
+        disable_web_page_preview: false,
+      });
+
+      console.log(`✅ Cuponatic enviado (${promoBlocks.length} promos)`);
     } else {
       console.log('ℹ️ Cuponatic: no hay promos para enviar.');
     }
@@ -330,8 +351,8 @@ if (mode === 'send') {
     if (!ev) {
       console.log('ℹ️ Eventbrite: no hay eventos próximos en CDMX.');
     } else {
-      await bot.telegram.sendMessage(process.env.CHAT_ID, ev.text, {
-        parse_mode: 'Markdown',
+      await bot.telegram.sendMessage(process.env.CHAT_ID, escMdV2(ev.text), {
+        parse_mode: 'MarkdownV2',
         disable_web_page_preview: false,
       });
       console.log('✅ Eventbrite enviado:', ev.title);
