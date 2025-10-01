@@ -2,9 +2,8 @@ name: LEGO diario
 
 on:
   schedule:
-    # 11:00 AM CDMX ≈ 17:00 UTC (GitHub Actions usa UTC)
-    - cron: "0 17 * * *"
-  workflow_dispatch: {}
+    - cron: "0 17 * * *"   # 11:00 AM CDMX (GitHub Actions usa UTC)
+  workflow_dispatch: {}     # permite correrlo manualmente
 
 jobs:
   run:
@@ -26,5 +25,5 @@ jobs:
           BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
           CHAT_ID: ${{ secrets.CHAT_ID }}
           AFF_PREFIX: ${{ secrets.AFF_PREFIX }}   # opcional
-          LEGO_MAX_ITEMS: "12"                    # ajusta si quieres
+          LEGO_MAX_ITEMS: "12"
         run: node bot_lego.mjs send
