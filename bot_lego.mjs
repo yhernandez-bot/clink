@@ -267,7 +267,7 @@ if (mode === 'send') {
   process.exit(0);
 } else if (process.env.ENABLE_HTTP_TRIGGER === '1') {
   const http = await import('http');
-  const PORT  = process.env.PORT || 3000;
+  const PORT  = process.env.PORT || 8080; // Railway suele exponer 8080
   const TOKEN = process.env.HTTP_TRIGGER_TOKEN || '';
 
   const server = http.createServer(async (req, res) => {
@@ -279,14 +279,18 @@ if (mode === 'send') {
           res.end('unauthorized');
           return;
         }
+        console.log(`🔔 trigger /lego/send at ${new Date().toISOString()}`);
         res.end('ok'); // respondemos rápido
+
         try {
           await sendLegoNow();
+          console.log(`✅ trigger terminado at ${new Date().toISOString()}`);
         } catch (e) {
           console.error('❌ Error en trigger:', e?.stack || e);
         }
         return;
       }
+
       res.statusCode = 200;
       res.end('ok');
     } catch (e) {
@@ -302,7 +306,6 @@ if (mode === 'send') {
   console.log('ℹ️ Sin HTTP trigger. Saliendo.');
   process.exit(0);
 }
-
 
 // Apagado limpio
 process.once('SIGINT',  () => bot.stop('SIGINT'));
