@@ -57,10 +57,15 @@ function simpleParse(html) {
   const items = [];
   const seen = new Set();
 
+  // Contadores de diagnóstico
+  let aCount = 0, legoCount = 0, priceCount = 0, origCount = 0, pctCount = 0;
+
   // Cazamos anchors a páginas de producto
   const anchorRe = /<a\b[^>]*href="(https:\/\/(?:articulo|www)\.mercadolibre\.com\.mx\/[^"]+)"[^>]*>/gi;
   let m;
   while ((m = anchorRe.exec(html))) {
+    aCount++;
+
     let url = decodeEntities(m[1]);
     if (seen.has(url)) continue;
     seen.add(url);
@@ -79,26 +84,28 @@ function simpleParse(html) {
     const rawTitle = tMatch ? tMatch[1] : '';
     const title = decodeEntities(rawTitle.replace(/\\"/g, '"')).trim();
     if (!/lego/i.test(title)) continue; // nos quedamos solo con LEGO
+    legoCount++;
 
-    // PRECIO actual (acepta coma o punto)
-const fracNow  = slice.match(/andes-money-amount__fraction[^>]*>([\d.,]+)/i);
-const centsNow = slice.match(/andes-money-amount__cents[^>]*>(\d{2})/i);
-let priceNum   = fracNow ? cleanNum(fracNow[1]) : null;
-// (centavos opcionales en centsNow; no los usamos para el %)
+    // PRECIO actual
+    const fracNow  = slice.match(/andes-money-amount__fraction[^>]*>([\d.,]+)/i);
+    const centsNow = slice.match(/andes-money-amount__cents[^>]*>(\d{2})/i);
+    let priceNum   = fracNow ? cleanNum(fracNow[1]) : null;
+    if (priceNum != null) priceCount++;
 
-// PRECIO original (tachado) – también acepta coma o punto
-const fracOrig = slice.match(/andes-money-amount__original[^>]*>[\s\S]*?andes-money-amount__fraction[^>]*>([\d.,]+)/i);
-let origNum    = fracOrig ? cleanNum(fracOrig[1]) : null;
+    // PRECIO original (tachado)
+    const fracOrig = slice.match(/andes-money-amount__original[^>]*>[\s\S]*?andes-money-amount__fraction[^>]*>([\d.,]+)/i);
+    let origNum    = fracOrig ? cleanNum(fracOrig[1]) : null;
+    if (origNum != null) origCount++;
 
-    // DESCUENTO explícito
+    // DESCUENTO explícito o calculado
     const off = slice.match(/(\d{1,3})%\s*OFF/i);
     let pct = off ? Number(off[1]) : null;
     if (pct == null && priceNum != null && origNum != null && origNum > 0) {
       pct = Math.round(((origNum - priceNum) / origNum) * 100);
     }
+    if (pct != null) pctCount++;
 
-    if (pct == null || pct < MIN_DISCOUNT) continue; // usa el mínimo desde env
-
+    // ⛔️ YA NO filtramos aquí por porcentaje; eso se hace afuera
     items.push({
       title,
       url,
@@ -108,6 +115,7 @@ let origNum    = fracOrig ? cleanNum(fracOrig[1]) : null;
     });
   }
 
+  console.log('parse stats:', { anchors: aCount, legoTitles: legoCount, price: priceCount, original: origCount, pct: pctCount, pushed: items.length });
   return items;
 }
 
