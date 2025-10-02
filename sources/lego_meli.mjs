@@ -195,18 +195,35 @@ export async function getLegoDeals(limit = 12) {
     console.log('ML html length:', html.length);
 
     const usingProxy = !!PROXY_URL;
-    // Si hay proxy, asumimos contenido OK para evitar el fallback a API
-    const blocked = !usingProxy && /captcha|robot|access denied|automated/i.test(html);
-    console.log(blocked ? '⚠️ posible bloqueo o captcha' : 'OK contenido');
 
-    let items;
-    if (blocked) {
-      console.log('⚠️ Bloqueo detectado: usando API pública');
-      items = await fetchDealsViaAPI(MIN_DISCOUNT, 200);
-    } else {
-      items = simpleParse(html);
+let items;
+if (usingProxy) {
+  // Con proxy: intentamos primero la API (más confiable)
+  try {
+    items = await fetchDealsViaAPI(MIN_DISCOUNT, 200);
+    console.log(`API vía proxy OK. Items: ${items.length}`);
+    if (items.length === 0) {
+      // Si la API no trajo nada, probamos HTML como respaldo
+      const html2 = await fetchHtml(LIST_URL);
+      console.log('HTML backup length:', html2.length);
+      items = simpleParse(html2);
     }
-
+  } catch (e) {
+    console.error('⚠️ API vía proxy falló, usando HTML:', e?.message || e);
+    const html2 = await fetchHtml(LIST_URL);
+    items = simpleParse(html2);
+  }
+} else {
+  // Sin proxy: mantenemos la lógica anterior
+  const blocked = /captcha|robot|access denied|automated/i.test(html);
+  console.log(blocked ? '⚠️ posible bloqueo o captcha' : 'OK contenido');
+  if (blocked) {
+    console.log('⚠️ Bloqueo detectado: usando API pública');
+    items = await fetchDealsViaAPI(MIN_DISCOUNT, 200);
+  } else {
+    items = simpleParse(html);
+  }
+}
     // Ordenar por mayor % OFF
     items.sort((a, b) => {
       const ap = a.pct ?? -1;
