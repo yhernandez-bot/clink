@@ -18,6 +18,20 @@ async function fetchWithProxy(targetUrl, init = {}) {
   return fetch(targetUrl, { ...init, headers });
 }
 
+const PROXY_URL_API = process.env.PROXY_URL_API || '';
+
+async function fetchWithProxyApi(targetUrl, init = {}) {
+  const headers = {
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124 Safari/537.36',
+    ...(init.headers || {})
+  };
+  if (PROXY_URL_API) {
+    const proxied = PROXY_URL_API + encodeURIComponent(targetUrl);
+    return fetch(proxied, { ...init, headers });
+  }
+  return fetch(targetUrl, { ...init, headers });
+}
+
 
 const MIN_DISCOUNT = Number(process.env.LEGO_MIN_DISCOUNT ?? 25);
 const LIST_URL =
@@ -130,8 +144,8 @@ async function fetchDealsViaAPI(minPct = MIN_DISCOUNT, max = 200) {
   url.searchParams.set('q', 'lego');
   url.searchParams.set('limit', String(max));
 
-  // Buscar por API (pasando por el proxy)
-  const r = await fetchWithProxy(url.toString(), {
+  // Buscar por API (pasando por el proxy de API, sin render)
+  const r = await fetchWithProxyApi(url.toString(), {
     headers: {
       'Accept': 'application/json',
       'Accept-Language': 'es-MX,es;q=0.9,en;q=0.8',
@@ -168,7 +182,7 @@ async function fetchDealsViaAPI(minPct = MIN_DISCOUNT, max = 200) {
 
   for (const d of toEnrich) {
     try {
-      const ri = await fetchWithProxy(`https://api.mercadolibre.com/items/${d.id}`, {
+      const ri = await fetchWithProxyApi(`https://api.mercadolibre.com/items/${d.id}`, {
         headers: {
           'Accept': 'application/json',
           'Accept-Language': 'es-MX,es;q=0.9,en;q=0.8',
@@ -201,7 +215,6 @@ async function fetchDealsViaAPI(minPct = MIN_DISCOUNT, max = 200) {
   console.log(`API ML resultados: ${results.length}, enriquecidos: ${toEnrich.length}, con >=${minPct}%: ${items.length}`);
   return items;
 }
-
 // Extrae ofertas desde el JSON embebido (Next.js) si existe
 function extractDealsFromNextData(html) {
   const items = [];
