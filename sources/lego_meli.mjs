@@ -83,7 +83,7 @@ let origNum    = fracOrig ? cleanNum(fracOrig[1]) : null;
       pct = Math.round(((origNum - priceNum) / origNum) * 100);
     }
 
-    if (pct == null || pct < 25) continue; // nos quedamos desde 25% OFF
+    if (pct == null || pct < MIN_DISCOUNT) continue; // usa el mínimo desde env
 
     items.push({
       title,
@@ -110,7 +110,7 @@ export async function getLegoDeals(limit = 12) {
       return b.pct - a.pct;
     });
 
-    console.log(`Encontrados con >=25% OFF: ${items.length}`);
+   console.log(`Encontrados con >=${MIN_DISCOUNT}% OFF: ${items.length}`);
     return items.slice(0, limit);
   } catch (e) {
     console.error('❌ Error MercadoLibre:', e);
@@ -121,6 +121,6 @@ export async function getLegoDeals(limit = 12) {
 // CLI local: `node sources/lego_meli.mjs`
 if (import.meta.url === `file://${process.argv[1]}`) {
   const deals = await getLegoDeals(20);
-  console.log('✅ Promos LEGO (>=25% OFF):');
+  console.log(`✅ Promos LEGO (>=${MIN_DISCOUNT}% OFF):`);
   console.log(deals);
 }
