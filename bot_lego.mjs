@@ -166,6 +166,45 @@ if (!deals.length) {
   return;
 }
 
+// ————————————————————————————————
+// HTTP Trigger (para correr en Railway)
+// ————————————————————————————————
+async function startHttpTrigger() {
+  const http = await import('http');
+  const PORT  = process.env.PORT || 3000;
+  const TOKEN = process.env.HTTP_TRIGGER_TOKEN || '';
+
+  const server = http.createServer(async (req, res) => {
+    try {
+      const u = new URL(req.url, 'http://localhost');
+      if (req.method === 'GET' && u.pathname === '/lego/send') {
+        if (!TOKEN || u.searchParams.get('token') !== TOKEN) {
+          res.statusCode = 401;
+          res.end('unauthorized');
+          return;
+        }
+        // Respondemos rápido y ejecutamos en background
+        res.end('ok');
+        try {
+          await sendLegoNow();
+        } catch (e) {
+          console.error('❌ Error en trigger:', e?.stack || e);
+        }
+        return;
+      }
+      res.statusCode = 200;
+      res.end('ok');
+    } catch (e) {
+      res.statusCode = 500;
+      res.end('error');
+    }
+  });
+
+  server.listen(PORT, () =>
+    console.log(`🌐 HTTP trigger escuchando en :${PORT} — GET /lego/send?token=***`)
+  );
+}
+    
 // Cabecera
 await bot.telegram.sendMessage(
   CHAT_ID,
@@ -219,18 +258,18 @@ await bot.telegram.sendMessage(
 }
 
 // ————————————————————————————————
-// Modo CLI vs servidor
+// Modo CLI vs HTTP trigger
 // ————————————————————————————————
-
 const mode = process.argv[2];
 
 if (mode === 'send') {
   await sendLegoNow();
   process.exit(0);
+} else if (process.env.ENABLE_HTTP_TRIGGER === '1') {
+  await startHttpTrigger();     // mantiene el proceso vivo en Railway
 } else {
-  console.log('🟢 LEGO bot en modo servidor…');
-  await bot.launch();
-  console.log('✅ Bot lanzado. Usa "node bot_lego.mjs send" para disparar el envío manual.');
+  console.log('ℹ️ Sin HTTP trigger. Saliendo.');
+  process.exit(0);
 }
 
 // Apagado limpio
