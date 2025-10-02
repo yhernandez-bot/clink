@@ -183,8 +183,7 @@ async function startHttpTrigger() {
           res.end('unauthorized');
           return;
         }
-        // Respondemos rápido y ejecutamos en background
-        res.end('ok');
+        res.end('ok'); // respondemos rápido y corremos en background
         try {
           await sendLegoNow();
         } catch (e) {
