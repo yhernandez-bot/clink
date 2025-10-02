@@ -100,6 +100,8 @@ let origNum    = fracOrig ? cleanNum(fracOrig[1]) : null;
 export async function getLegoDeals(limit = 12) {
   try {
     const html = await fetchHtml(LIST_URL);
+    console.log('ML html length:', html.length);
+    console.log(/captcha|robot|access denied|automated/i.test(html) ? '⚠️ posible bloqueo o captcha' : 'OK contenido');
     let items = simpleParse(html);
 
     // Ordenar por mayor % OFF primero
