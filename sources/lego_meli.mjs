@@ -97,22 +97,59 @@ let origNum    = fracOrig ? cleanNum(fracOrig[1]) : null;
   return items;
 }
 
+// Fallback: usar la API pública cuando el HTML trae captcha/bloqueo
+async function fetchDealsViaAPI(minPct = MIN_DISCOUNT, max = 200) {
+  const url = new URL('https://api.mercadolibre.com/sites/MLM/search');
+  url.searchParams.set('q', 'lego');
+  url.searchParams.set('limit', String(max));
+  const r = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0' } });
+  if (!r.ok) throw new Error(`ML API ${r.status}`);
+  const j = await r.json();
+  const results = Array.isArray(j.results) ? j.results : [];
+
+  const items = results.map(x => {
+    const price = x.price ?? null;
+    const orig  = x.original_price ?? null;
+    let pct = null;
+    if (orig && price && orig > price) {
+      pct = Math.round(((orig - price) / orig) * 100);
+    }
+    return {
+      title: x.title,
+      url: x.permalink || '',
+      price: price != null ? `$${Number(price).toLocaleString('es-MX')}` : '',
+      original: orig  != null ? `$${Number(orig ).toLocaleString('es-MX')}` : null,
+      pct,
+    };
+  }).filter(d => (d.pct ?? 0) >= minPct);
+
+  console.log(`API ML resultados: ${results.length}, con >=${minPct}%: ${items.length}`);
+  return items;
+}
+
 export async function getLegoDeals(limit = 12) {
   try {
     const html = await fetchHtml(LIST_URL);
     console.log('ML html length:', html.length);
-    console.log(/captcha|robot|access denied|automated/i.test(html) ? '⚠️ posible bloqueo o captcha' : 'OK contenido');
-    let items = simpleParse(html);
+    const blocked = /captcha|robot|access denied|automated/i.test(html);
+    console.log(blocked ? '⚠️ posible bloqueo o captcha' : 'OK contenido');
 
-    // Ordenar por mayor % OFF primero
+    let items;
+    if (blocked) {
+      console.log('⚠️ Bloqueo detectado: usando API pública');
+      items = await fetchDealsViaAPI(MIN_DISCOUNT, 200);
+    } else {
+      items = simpleParse(html);
+    }
+
+    // Ordenar por mayor % OFF
     items.sort((a, b) => {
-      if (a.pct == null && b.pct == null) return 0;
-      if (a.pct == null) return 1;
-      if (b.pct == null) return -1;
-      return b.pct - a.pct;
+      const ap = a.pct ?? -1;
+      const bp = b.pct ?? -1;
+      return bp - ap;
     });
 
-   console.log(`Encontrados con >=${MIN_DISCOUNT}% OFF: ${items.length}`);
+    console.log(`Encontrados con >=${MIN_DISCOUNT}% OFF: ${items.length}`);
     return items.slice(0, limit);
   } catch (e) {
     console.error('❌ Error MercadoLibre:', e);
