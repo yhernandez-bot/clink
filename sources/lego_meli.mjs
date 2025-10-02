@@ -60,15 +60,20 @@ function simpleParse(html) {
   // Contadores de diagnóstico
   let aCount = 0, legoCount = 0, priceCount = 0, origCount = 0, pctCount = 0;
 
-  // Cazamos anchors a páginas de producto
-  const anchorRe = /<a\b[^>]*href="(https:\/\/(?:articulo|www)\.mercadolibre\.com\.mx\/[^"]+)"[^>]*>/gi;
+  // Cazamos anchors a páginas de producto (soporta https://, // y rutas relativas /p/MLMxxxxx o /MLMxxxxx)
+const anchorRe = /<a\b[^>]*href="((?:https?:)?\/\/(?:[^"\/]+\.)?mercadolibre\.com\.mx\/[^"]*|\/(?:p\/)?MLM\d+[^"]*)"[^>]*>/gi;
   let m;
   while ((m = anchorRe.exec(html))) {
     aCount++;
 
     let url = decodeEntities(m[1]);
-    if (seen.has(url)) continue;
-    seen.add(url);
+    
+    // Normaliza URL: // -> https:, rutas relativas -> dominio completo
+if (url.startsWith('//')) url = 'https:' + url;
+if (url.startsWith('/'))  url = 'https://www.mercadolibre.com.mx' + url;
+
+if (seen.has(url)) continue;
+seen.add(url);
 
     // Tomamos un "slice" alrededor para extraer título, precio y descuento
     const start = Math.max(0, m.index - 4000);
