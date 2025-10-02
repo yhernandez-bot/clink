@@ -3,20 +3,34 @@
 // Estrategia: descargar HTML y, por cada <a href="...mercadolibre.com.mx/...">,
 // buscar cerca el título, precio, precio original y "% OFF".
 
+
+const PROXY_URL = process.env.PROXY_URL || '';
+
+async function fetchWithProxy(targetUrl, init = {}) {
+  const headers = {
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124 Safari/537.36',
+    ...(init.headers || {})
+  };
+  if (PROXY_URL) {
+    const proxied = PROXY_URL + encodeURIComponent(targetUrl);
+    return fetch(proxied, { ...init, headers });
+  }
+  return fetch(targetUrl, { ...init, headers });
+}
+
+
 const MIN_DISCOUNT = Number(process.env.LEGO_MIN_DISCOUNT ?? 25);
 const LIST_URL =
   'https://listado.mercadolibre.com.mx/juegos-juguetes/juegos-construccion/bloques-figuras-armar/lego/lego_Discount_5-100_NoIndex_True#applied_filter_id%3Ddiscount%26applied_filter_name%3DDescuentos%26applied_filter_order%3D9%26applied_value_id%3D25-100%26applied_value_name%3DDesde+25%25+OFF%26applied_value_order%3D4%26applied_value_results%3D237%26is_custom%3Dfalse';
 
 async function fetchHtml(url) {
-  const res = await fetch(url, {
-    headers: {
-      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-      'Accept-Language': 'es-MX,es;q=0.9',
-      'Cache-Control': 'no-cache',
-      'User-Agent':
-        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123 Safari/537.36',
-    },
-  });
+  const res = await fetchWithProxy(url, {
+  headers: {
+    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+    'Accept-Language': 'es-MX,es;q=0.9',
+    'Cache-Control': 'no-cache'
+  }
+});
   if (!res.ok) {
     const t = await res.text().catch(() => '');
     throw new Error(`ML HTML ${res.status}: ${t.slice(0, 180)}`);
