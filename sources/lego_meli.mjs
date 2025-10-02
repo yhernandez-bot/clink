@@ -202,6 +202,68 @@ async function fetchDealsViaAPI(minPct = MIN_DISCOUNT, max = 200) {
   return items;
 }
 
+// Extrae ofertas desde el JSON embebido (Next.js) si existe
+function extractDealsFromNextData(html) {
+  const items = [];
+  const m = html.match(/<script[^>]+id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/i);
+  if (!m) return items;
+
+  let j;
+  try {
+    j = JSON.parse(m[1]);
+  } catch {
+    return items;
+  }
+
+  // Buscamos recursivamente objetos que parezcan items con permalink/price
+  const stack = [j];
+  while (stack.length) {
+    const node = stack.pop();
+    if (!node) continue;
+    if (Array.isArray(node)) {
+      for (const v of node) stack.push(v);
+    } else if (typeof node === 'object') {
+      // Heurística: objeto con permalink y price/original_price
+      const permalink = node.permalink || node.url || null;
+      const title = node.title || node.name || null;
+      const price = node.price ?? node.sale_price ?? null;
+      const orig  = node.original_price ?? node.list_price ?? null;
+
+      if (permalink && /mercadolibre\.com\.mx/i.test(permalink) && title) {
+        let pct = null;
+        if (orig && price && orig > price) {
+          pct = Math.round(((orig - price) / orig) * 100);
+        }
+        items.push({
+          title: String(title),
+          url: String(permalink),
+          price: price != null ? `$${Number(price).toLocaleString('es-MX')}` : '',
+          original: orig  != null ? `$${Number(orig ).toLocaleString('es-MX')}` : null,
+          pct
+        });
+      }
+
+      for (const k of Object.keys(node)) {
+        if (node[k] && (typeof node[k] === 'object' || Array.isArray(node[k]))) {
+          stack.push(node[k]);
+        }
+      }
+    }
+  }
+
+  // Dedup por URL
+  const seen = new Set();
+  const dedup = [];
+  for (const it of items) {
+    if (seen.has(it.url)) continue;
+    seen.add(it.url);
+    dedup.push(it);
+  }
+  console.log('next_data stats:', { raw: items.length, dedup: dedup.length });
+  return dedup;
+}
+
+
 export async function getLegoDeals(limit = 12) {
   try {
     const html = await fetchHtml(LIST_URL);
@@ -235,6 +297,14 @@ if (usingProxy) {
     items = await fetchDealsViaAPI(MIN_DISCOUNT, 200);
   } else {
     items = simpleParse(html);
+    // Si el parseo por HTML no trajo nada, intenta con __NEXT_DATA__
+if (!items.length) {
+  const itemsFromNext = extractDealsFromNextData(html);
+  if (itemsFromNext.length) {
+    items = itemsFromNext;
+    console.log('usando __NEXT_DATA__');
+  }
+}
   }
 }
     // Ordenar por mayor % OFF
