@@ -116,18 +116,21 @@ async function fetchDealsViaAPI(minPct = MIN_DISCOUNT, max = 200) {
   const url = new URL('https://api.mercadolibre.com/sites/MLM/search');
   url.searchParams.set('q', 'lego');
   url.searchParams.set('limit', String(max));
-  const ri = await fetchWithProxy(`https://api.mercadolibre.com/items/${d.id}`, {
-   headers: {
-     'Accept': 'application/json',
-     'Accept-Language': 'es-MX,es;q=0.9,en;q=0.8',
-     'Referer': 'https://www.mercadolibre.com.mx/'
-   }
- });
+
+  // Buscar por API (pasando por el proxy)
+  const r = await fetchWithProxy(url.toString(), {
+    headers: {
+      'Accept': 'application/json',
+      'Accept-Language': 'es-MX,es;q=0.9,en;q=0.8',
+      'Referer': 'https://www.mercadolibre.com.mx/'
+    }
+  });
   if (!r.ok) throw new Error(`ML API ${r.status}`);
   const j = await r.json();
   const results = Array.isArray(j.results) ? j.results : [];
 
-  const items = results.map(x => {
+  // Mapeo preliminar
+  let prelim = results.map(x => {
     const price = x.price ?? null;
     const orig  = x.original_price ?? null;
     let pct = null;
@@ -135,15 +138,54 @@ async function fetchDealsViaAPI(minPct = MIN_DISCOUNT, max = 200) {
       pct = Math.round(((orig - price) / orig) * 100);
     }
     return {
+      id: x.id,
       title: x.title,
       url: x.permalink || '',
       price: price != null ? `$${Number(price).toLocaleString('es-MX')}` : '',
       original: orig  != null ? `$${Number(orig ).toLocaleString('es-MX')}` : null,
       pct,
+      _priceNum: price,
+      _origNum:  orig
     };
-  }).filter(d => (d.pct ?? 0) >= minPct);
+  });
 
-  console.log(`API ML resultados: ${results.length}, con >=${minPct}%: ${items.length}`);
+  // Enriquecer con la API de items para rellenar original_price si falta
+  async function sleep(ms){ return new Promise(r => setTimeout(r, ms)); }
+  const toEnrich = prelim.filter(d => d.pct == null && d.id).slice(0, 80); // limita peticiones
+
+  for (const d of toEnrich) {
+    try {
+      const ri = await fetchWithProxy(`https://api.mercadolibre.com/items/${d.id}`, {
+        headers: {
+          'Accept': 'application/json',
+          'Accept-Language': 'es-MX,es;q=0.9,en;q=0.8',
+          'Referer': 'https://www.mercadolibre.com.mx/'
+        }
+      });
+      if (!ri.ok) continue;
+      const ji = await ri.json();
+
+      const price = ji.price ?? d._priceNum ?? null;
+      const orig  = ji.original_price ?? d._origNum ?? null;
+
+      let pct = d.pct;
+      if ((pct == null) && orig && price && orig > price) {
+        pct = Math.round(((orig - price) / orig) * 100);
+      }
+
+      d.pct = pct ?? d.pct;
+      d.price    = price != null ? `$${Number(price).toLocaleString('es-MX')}` : d.price;
+      d.original = orig  != null ? `$${Number(orig ).toLocaleString('es-MX')}` : d.original;
+      d.url = ji.permalink || d.url;
+    } catch {
+      // ignorar y seguir
+    }
+    await sleep(80); // suaviza rate limit
+  }
+
+  // Filtrar por mínimo solicitado
+  const items = prelim.filter(d => (d.pct ?? 0) >= minPct);
+  console.log(`API ML resultados: ${results.length}, enriquecidos: ${toEnrich.length}, con >=${minPct}%: ${items.length}`);
   return items;
 }
 
