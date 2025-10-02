@@ -268,7 +268,7 @@ export async function getLegoDeals(limit = 12) {
   try {
     const html = await fetchHtml(LIST_URL);
     console.log('ML html length:', html.length);
-
+    console.log('has __NEXT_DATA__:', /id="__NEXT_DATA__"/i.test(html));
     const usingProxy = !!PROXY_URL;
 
 let items;
