@@ -193,7 +193,10 @@ export async function getLegoDeals(limit = 12) {
   try {
     const html = await fetchHtml(LIST_URL);
     console.log('ML html length:', html.length);
-    const blocked = /captcha|robot|access denied|automated/i.test(html);
+
+    const usingProxy = !!PROXY_URL;
+    // Si hay proxy, asumimos contenido OK para evitar el fallback a API
+    const blocked = !usingProxy && /captcha|robot|access denied|automated/i.test(html);
     console.log(blocked ? '⚠️ posible bloqueo o captcha' : 'OK contenido');
 
     let items;
