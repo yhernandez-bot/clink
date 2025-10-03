@@ -34,7 +34,8 @@ async function fetchWithProxyApi(targetUrl, init = {}) {
 
 
 const MIN_DISCOUNT = Number(process.env.LEGO_MIN_DISCOUNT ?? 25);
-const LIST_URL = 'https://listado.mercadolibre.com.mx/lego';
+const LIST_URL =
+  'https://listado.mercadolibre.com.mx/juegos-juguetes/juegos-construccion/bloques-figuras-armar/lego/lego_Discount_5-100_NoIndex_True#applied_filter_id%3Ddiscount%26applied_filter_name%3DDescuentos%26applied_filter_order%3D9%26applied_value_id%3D25-100%26applied_value_name%3DDesde+25%25+OFF%26applied_value_order%3D4%26applied_value_results%3D237%26is_custom%3Dfalse';
 
 async function fetchHtml(url) {
   const res = await fetchWithProxy(url, {
