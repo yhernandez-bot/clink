@@ -1,44 +1,24 @@
-name: LEGO diario
+name: LEGO manual
 
 on:
-  schedule:
-    - cron: "0 17 * * *"   # 11:00 AM CDMX (GitHub Actions usa UTC)
-  workflow_dispatch:
-
-permissions:
-  contents: read
-
-concurrency:
-  group: lego-daily
-  cancel-in-progress: true
+  workflow_dispatch: {}   # solo manual, SIN schedule
 
 jobs:
   send-lego:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
-    env:
-      TZ: America/Mexico_City
-      NODE_ENV: production
-
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
-          node-version: 22
-          cache: npm
-          cache-dependency-path: package-lock.json
-
-      - name: Instalar dependencias
-        run: npm ci --no-audit --fund=false
-
-      - name: Enviar LEGO
+          node-version: "22"
+      - run: npm ci
+      - name: Enviar LEGO (solo si tú lo disparas)
         env:
           BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
           CHAT_ID: ${{ secrets.CHAT_ID }}
           AFF_PREFIX: ${{ secrets.AFF_PREFIX }}   # opcional
-          LEGO_MAX_ITEMS: "12"
-          LEGO_MIN_DISCOUNT: "5"
+          LEGO_MAX_ITEMS: "25"
+          LEGO_MIN_DISCOUNT: "20"
+          LEGO_MAX_DISCOUNT: "40"
+          TARGET_PCT: "30"
         run: node bot_lego.mjs send
