@@ -145,15 +145,20 @@ async function fetchDealsViaAPI(minPct = MIN_DISCOUNT, max = 200) {
   url.searchParams.set('limit', String(max));
 
   // Buscar por API (pasando por el proxy de API, sin render)
-  const r = await fetchWithProxyApi(url.toString(), {
-    headers: {
-      'Accept': 'application/json',
-      'Accept-Language': 'es-MX,es;q=0.9,en;q=0.8',
-      'Referer': 'https://www.mercadolibre.com.mx/'
-    }
-  });
-  if (!r.ok) throw new Error(`ML API ${r.status}`);
-  const j = await r.json();
+ const r = await fetchWithProxyApi(url.toString(), {
+  headers: {
+    'Accept': 'application/json',
+    'Accept-Language': 'es-MX,es;q=0.9,en;q=0.8',
+    'Referer': 'https://www.mercadolibre.com.mx/',
+    'Origin': 'https://www.mercadolibre.com.mx'
+  }
+});
+if (!r.ok) {
+  const body = await r.text().catch(() => '');
+  console.error('ML API fail:', r.status, body.slice(0, 400));
+  throw new Error(`ML API ${r.status}`);
+}
+const j = await r.json();
   const results = Array.isArray(j.results) ? j.results : [];
 
   // Mapeo preliminar
