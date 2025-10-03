@@ -67,6 +67,16 @@ function decodeEntities(s = '') {
     .replace(/&gt;/g, '>');
 }
 
+function extractMLMIds(html) {
+  const ids = new Set();
+  const re = /MLM\d{6,}/g; // IDs tipo MLM123456
+  let m;
+  while ((m = re.exec(html))) ids.add(m[0]);
+  const arr = [...ids];
+  console.log('mlm id stats:', { total: arr.length, sample: arr.slice(0, 10) });
+  return arr;
+}
+
 function simpleParse(html) {
   const items = [];
   const seen = new Set();
@@ -325,6 +335,15 @@ if (!items.length) {
 }
   }
 }
+
+    // Si todavía no hay nada, intenta detectar IDs (MLM…) en el HTML
+if (!items.length) {
+  const ids = extractMLMIds(html);
+  // Por ahora solo log; en el siguiente paso usaremos estos IDs
+  if (!ids.length) console.log('sin IDs MLM en HTML');
+}
+    
+    
     // Ordenar por mayor % OFF
     items.sort((a, b) => {
       const ap = a.pct ?? -1;
