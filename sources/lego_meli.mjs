@@ -34,7 +34,7 @@ async function fetchWithProxyApi(targetUrl, init = {}) {
 
 
 const MIN_DISCOUNT = Number(process.env.LEGO_MIN_DISCOUNT ?? 25);
-const LIST_URL = 'https://listado.mercadolibre.com.mx/lego#D[A:lego]';
+const LIST_URL = 'https://m.mercadolibre.com.mx/jm/search?as_word=lego';
 
 async function fetchHtml(url) {
   const res = await fetchWithProxy(url, {
