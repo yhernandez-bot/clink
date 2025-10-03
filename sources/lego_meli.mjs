@@ -291,73 +291,160 @@ function extractDealsFromNextData(html) {
   return dedup;
 }
 
+// Lee un detalle de producto por ID intentando 2 URLs y calcula %OFF
+async function fetchDealFromId(id) {
+  const tryUrls = [
+    `https://articulo.mercadolibre.com.mx/${id}`,
+    `https://www.mercadolibre.com.mx/p/${id}`
+  ];
+  for (const u of tryUrls) {
+    try {
+      const r = await fetchWithProxy(u, {
+        headers: { 'Accept-Language': 'es-MX,es;q=0.9' }
+      });
+      if (!r.ok) continue;
+      const html = await r.text();
+
+      // Título
+      let title =
+        (html.match(/<meta[^>]+property=["']og:title["'][^>]+content=["']([^"']+)["']/i)?.[1]) ||
+        (html.match(/"name":"([^"]{5,200})"/)?.[1]) ||
+        null;
+
+      // Precio actual y original desde HTML
+      const fracNow  = html.match(/andes-money-amount__fraction[^>]*>([\d.,]+)/i);
+      let priceNum   = fracNow ? cleanNum(fracNow[1]) : null;
+
+      const fracOrig = html.match(/andes-money-amount__original[^>]*>[\s\S]*?andes-money-amount__fraction[^>]*>([\d.,]+)/i);
+      let origNum    = fracOrig ? cleanNum(fracOrig[1]) : null;
+
+      // Fallback: JSON-LD (application/ld+json)
+      if (priceNum == null) {
+        const ldRe = /<script[^>]+type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi;
+        let m;
+        while ((m = ldRe.exec(html))) {
+          try {
+            const data = JSON.parse(m[1]);
+            const stack = [data];
+            while (stack.length) {
+              const node = stack.pop();
+              if (!node) continue;
+              if (Array.isArray(node)) {
+                for (const v of node) stack.push(v);
+              } else if (typeof node === 'object') {
+                if (node.offers && (node.offers.price || node.offers.lowPrice)) {
+                  const p0 = node.offers.price ?? node.offers.lowPrice;
+                  priceNum = cleanNum(p0);
+                }
+                if (node.priceSpecification && node.priceSpecification.price) {
+                  const p1 = cleanNum(node.priceSpecification.price);
+                  if (p1 && !origNum) origNum = p1;
+                }
+                if (node.name && !title) title = String(node.name);
+                for (const k of Object.keys(node)) {
+                  const v = node[k];
+                  if (v && (typeof v === 'object' || Array.isArray(v))) stack.push(v);
+                }
+              }
+            }
+          } catch { /* ignore */ }
+          if (priceNum != null) break;
+        }
+      }
+
+      if (!title) title = `LEGO ${id}`;
+
+      let pct = null;
+      if (origNum && priceNum && origNum > priceNum) {
+        pct = Math.round(((origNum - priceNum) / origNum) * 100);
+      }
+
+      return {
+        title,
+        url: u,
+        price: priceNum != null ? `$${Number(priceNum).toLocaleString('es-MX')}` : '',
+        original: origNum != null ? `$${Number(origNum).toLocaleString('es-MX')}` : null,
+        pct
+      };
+    } catch {
+      // intenta con la siguiente URL
+    }
+  }
+  return null;
+}
+
 
 export async function getLegoDeals(limit = 12) {
   try {
     const html = await fetchHtml(LIST_URL);
     console.log('ML html length:', html.length);
-    console.log('has __NEXT_DATA__:', /id="__NEXT_DATA__"/i.test(html));
+
     const usingProxy = !!PROXY_URL;
+    let items;
 
-let items;
-if (usingProxy) {
-  // Con proxy: intentamos primero la API (más confiable)
-  try {
-    items = await fetchDealsViaAPI(MIN_DISCOUNT, 200);
-    console.log(`API vía proxy OK. Items: ${items.length}`);
-    if (items.length === 0) {
-      // Si la API no trajo nada, probamos HTML como respaldo
-      const html2 = await fetchHtml(LIST_URL);
-      console.log('HTML backup length:', html2.length);
-      items = simpleParse(html2);
+    if (usingProxy) {
+      // 1) Intentar API vía proxy (si falla, caemos a HTML)
+      try {
+        items = await fetchDealsViaAPI(MIN_DISCOUNT, 200);
+        console.log(`API vía proxy OK. Items (previo filtro): ${items.length}`);
+      } catch (e) {
+        console.error('⚠️ API vía proxy falló, usando HTML:', e?.message || e);
+        items = simpleParse(html);
+
+        // 2) Si HTML listado no trajo nada, intenta __NEXT_DATA__
+        if (!items.length) {
+          const itemsFromNext = extractDealsFromNextData(html);
+          if (itemsFromNext.length) {
+            items = itemsFromNext;
+            console.log('usando __NEXT_DATA__');
+          }
+        }
+
+        // 3) Si sigue vacío, usa IDs (MLM…) del HTML para ir a detalle
+        if (!items.length) {
+          const ids = extractMLMIds(html);
+          console.log('fetching details for ids:', ids.length);
+          const picked = ids.slice(0, 20); // limita llamadas
+          const details = [];
+          for (const id of picked) {
+            const d = await fetchDealFromId(id);
+            if (d) details.push(d);
+            await new Promise(r => setTimeout(r, 120)); // suaviza rate limit
+          }
+          items = details;
+        }
+      }
+    } else {
+      // Sin proxy: lógica original (con detección de bloqueo)
+      const blocked = /captcha|robot|access denied|automated/i.test(html);
+      console.log(blocked ? '⚠️ posible bloqueo o captcha' : 'OK contenido');
+
+      if (blocked) {
+        items = await fetchDealsViaAPI(MIN_DISCOUNT, 200);
+      } else {
+        items = simpleParse(html);
+        if (!items.length) {
+          const itemsFromNext = extractDealsFromNextData(html);
+          if (itemsFromNext.length) {
+            items = itemsFromNext;
+            console.log('usando __NEXT_DATA__');
+          }
+        }
+      }
     }
-  } catch (e) {
-    console.error('⚠️ API vía proxy falló, usando HTML:', e?.message || e);
-    const html2 = await fetchHtml(LIST_URL);
-    items = simpleParse(html2);
-  }
-} else {
-  // Sin proxy: mantenemos la lógica anterior
-  const blocked = /captcha|robot|access denied|automated/i.test(html);
-  console.log(blocked ? '⚠️ posible bloqueo o captcha' : 'OK contenido');
-  if (blocked) {
-    console.log('⚠️ Bloqueo detectado: usando API pública');
-    items = await fetchDealsViaAPI(MIN_DISCOUNT, 200);
-  } else {
-    items = simpleParse(html);
-    // Si el parseo por HTML no trajo nada, intenta con __NEXT_DATA__
-if (!items.length) {
-  const itemsFromNext = extractDealsFromNextData(html);
-  if (itemsFromNext.length) {
-    items = itemsFromNext;
-    console.log('usando __NEXT_DATA__');
-  }
-}
-  }
-}
 
-    // Si todavía no hay nada, intenta detectar IDs (MLM…) en el HTML
-if (!items.length) {
-  const ids = extractMLMIds(html);
-  // Por ahora solo log; en el siguiente paso usaremos estos IDs
-  if (!ids.length) console.log('sin IDs MLM en HTML');
-}
-    
-    
-    // Ordenar por mayor % OFF
-    items.sort((a, b) => {
-      const ap = a.pct ?? -1;
-      const bp = b.pct ?? -1;
-      return bp - ap;
-    });
-
-    console.log(`Encontrados con >=${MIN_DISCOUNT}% OFF: ${items.length}`);
-    return items.slice(0, limit);
+    // Orden + filtro final + límite
+    items = items || [];
+    items.sort((a, b) => (b.pct ?? -1) - (a.pct ?? -1));
+    const filtered = items.filter(x => (x.pct ?? 0) >= MIN_DISCOUNT);
+    console.log(`Encontrados con >=${MIN_DISCOUNT}% OFF: ${filtered.length}`);
+    return filtered.slice(0, limit);
   } catch (e) {
     console.error('❌ Error MercadoLibre:', e);
     return [];
   }
 }
+
 
 // CLI local: `node sources/lego_meli.mjs`
 if (import.meta.url === `file://${process.argv[1]}`) {
